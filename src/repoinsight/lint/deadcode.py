@@ -20,12 +20,17 @@ _ENTRYPOINT_PREFIXES = ("test_",)
 
 
 def _used_simple_names(result: AnalysisResult) -> Set[str]:
-    """All names that appear as call targets, bases or decorators."""
+    """All names that appear as call targets, bases or decorators.
+
+    For attribute calls like `cart.add(...)` we also record the attribute
+    name itself, so instance-method usage keeps methods alive.
+    """
     used: Set[str] = set()
     for sym in result.symbols:
         for call in sym.calls:
             used.add(call)
             used.add(call.split(".")[0])
+            used.add(call.rsplit(".", 1)[-1])
         used.update(sym.bases)
         used.update(sym.decorators)
     return used

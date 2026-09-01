@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: 运行测试
+        run: python -m pytest tests/ -q
+      - name: 自检:用 repoinsight 分析它自己
+        run: |
+          PYTHONPATH=src python -m repoinsight.cli summary src
+          PYTHONPATH=src python -m repoinsight.cli lint src || true
+          PYTHONPATH=src python -m repoinsight.cli report src --interactive -o self-report.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: self-report
+          path: self-report.html
