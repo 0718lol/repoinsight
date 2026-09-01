@@ -283,6 +283,7 @@ function drawGraph(kind){
   const edgeEls = [], nodeEls = [];
   sim.edges.forEach(([s, t]) => {
     const p = document.createElementNS(ns, 'path');
+    p.setAttribute('class', 'edge');
     p.dataset.s = s; p.dataset.t = t;
     g.appendChild(p); edgeEls.push(p);
   });
@@ -306,9 +307,9 @@ function drawGraph(kind){
     edgeEls.forEach(l => l.setAttribute('d', path(sim.byId[l.dataset.s], sim.byId[l.dataset.t])));
     sim.nodes.forEach(n => {
       n._circle.setAttribute('cx', n.x); n._circle.setAttribute('cy', n.y);
-      n._circle.setAttribute('fill', pkgColor(n.dataset.pkg));
+      n._circle.setAttribute('fill', pkgColor(pkgOf(n.id)));
       n._circle.setAttribute('filter', n.deg > 4 ? `url(#glow-${kind})` : '');
-      n._label.setAttribute('x', n.x + 12); n._label.setAttribute('y', n.y + 4);
+      n._label.setAttribute('x', n.x + 12); n._label.setAttribute('y', n.y + 3.5);
       n._label.textContent = showAllLabels.checked || n.deg > 3 ? n.id : '';
       n._label.classList.toggle('big', n.deg > 3);
     });
@@ -350,7 +351,7 @@ function drawGraph(kind){
   render();
   /* package legend for the deps graph */
   if (kind === 'deps'){
-    const pkgs = [...new Set(sim.nodes.map(n => n.dataset.pkg))];
+    const pkgs = [...new Set(sim.nodes.map(n => pkgOf(n.id)))];
     document.getElementById('legend-deps').innerHTML = pkgs.map(p =>
       `<span><i style="background:${pkgColor(p)}"></i>${esc(p)}</span>`).join('');
   }
