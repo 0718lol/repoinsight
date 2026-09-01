@@ -30,6 +30,8 @@ repoinsight summary 你的项目/
 | `modules 项目/ -o modules.dot` | 模块依赖图(Graphviz DOT,可用 `dot -Tpng` 转图片) |
 | `calls 项目/ -o calls.dot` | 函数调用图(DOT) |
 | `hotspots 项目/` | 哪些文件改得最勤 × 最大(需要 git 仓库) |
+| `score 项目/` | 架构健康分 0-100,附 5 个维度扣分明细 |
+| `diff 项目/ HEAD~1 HEAD` | 对比两个版本:新增/删除的文件、函数、调用边,复杂度升降 |
 | `json 项目/ -o out.json` | 完整分析结果导出 JSON |
 
 交互报告长这样(暗色驾驶舱风格,全部离线可用):

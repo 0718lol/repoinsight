@@ -65,6 +65,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     common(sp_hot)
     sp_hot.add_argument("--top", type=int, default=20, help="显示前几个文件(默认 20)")
 
+    sp_score = sub.add_parser("score", help="给项目打架构健康分(0-100,含扣分明细)")
+    common(sp_score)
+
+    sp_diff = sub.add_parser("diff", help="对比两个 git 版本之间架构的变化")
+    common(sp_diff)
+    sp_diff.add_argument("ref_a", help="旧版本(如 HEAD~1 或提交哈希)")
+    sp_diff.add_argument("ref_b", nargs="?", default="HEAD", help="新版本(默认 HEAD)")
+
     return p
 
 
@@ -185,6 +193,38 @@ def _cmd_who_calls(analyzer: RepoAnalyzer, args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_score(analyzer: RepoAnalyzer, args: argparse.Namespace) -> int:
+    from .health import score
+    hs = score(analyzer.result)
+    print(f"架构健康分:{hs.total}/100({hs.grade})")
+    print("=" * 56)
+    for d in hs.dimensions:
+        bar = "█" * (d.max_penalty // 2) if d.penalty else ""
+        lost = f"-{d.penalty}" if d.penalty else "满分"
+        print(f"  {d.name:<6} {lost:>4} {bar}")
+        if d.penalty:
+            print(f"         └ {d.detail}")
+    if args.output:
+        import json as _json
+        Path(args.output).write_text(
+            _json.dumps(hs.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        print(f"健康分数据已写入 {args.output}")
+    return 0
+
+
+def _cmd_diff(analyzer: RepoAnalyzer, args: argparse.Namespace) -> int:
+    from .compare import compare_refs, render_diff_text
+    d = compare_refs(analyzer.root, args.ref_a, args.ref_b)
+    text = render_diff_text(d)
+    if args.output:
+        Path(args.output).write_text(text, encoding="utf-8")
+        print(f"对比报告已写入 {args.output}")
+    else:
+        sys.stdout.write(text)
+    return 0
+
+
 _COMMANDS = {
     "summary": _cmd_summary,
     "json": _cmd_json,
@@ -194,6 +234,8 @@ _COMMANDS = {
     "lint": _cmd_lint,
     "hotspots": _cmd_hotspots,
     "who-calls": _cmd_who_calls,
+    "score": _cmd_score,
+    "diff": _cmd_diff,
 }
 
 

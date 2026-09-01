@@ -57,6 +57,8 @@
 | `call_graph.py` | 把「函数里调用了 X」解析成「具体哪个函数」 | `CallGraph.build()` |
 | `analyzer.py` | **总编排**:调上面所有东西,产出 `AnalysisResult` 和各种报表数据 | `RepoAnalyzer.analyze()` |
 | `lint/` | 体检:循环依赖(Tarjan)、死代码、分层规则 | `lint.run_all(result)` |
+| `health.py` | 架构健康分:0-100 分 + 5 个维度的扣分明细 | `health.score(result)` |
+| `compare.py` | 对比两个 git 版本:文件/符号/调用边/复杂度增减 | `compare_refs(root, a, b)` |
 | `gitinfo.py` | git 历史:文件改动频率、两次提交 diff | `git_hotspots()` |
 | `output.py` | 文字摘要 / JSON / DOT 图 | `write_*()` |
 | `report/html_report.py` | 简版静态 HTML 报告 | `render_html_report()` |
@@ -92,6 +94,11 @@
 2. 在 `lint/__init__.py` 的 `run_all()` 里追加调用。
 3. 在 `cli.py` 的 `_KIND_LABELS` 里加中文标签。
 4. 测试加到 `tests/test_lint.py`。
+   (健康分会自动跟着变,因为 `health.score` 内部就是调 `run_all`。)
+
+**③b 调整健康分算法**
+1. 打开 `health.py` 的 `score()`:每个维度是一个 `Dimension(名称, 扣分, 上限, 说明)`。
+2. 改权重或加维度都在那一个函数里;报告和 CLI 会自动展示新维度。
 
 **④ 给交互报告加一个模块/图表**
 1. 数据:在 `report/interactive.py` 的 `_collect_data()` 里加字段(纯 Python,先测 JSON)。

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from ..analyzer import RepoAnalyzer
+from ..health import score as health_score
 
 MAX_SOURCE_LINES = 500
 MAX_CALL_NODES = 80
@@ -48,6 +49,7 @@ def _collect_data(analyzer: RepoAnalyzer) -> Dict:
 
     return {
         "summary": analyzer.summary(),
+        "health": health_score(result).to_dict(),
         "modules": sorted(modules),
         "moduleDeps": result.module_dependencies,
         "callEdges": [list(e) for e in result.call_edges if e[0] in keep and e[1] in keep],
@@ -184,6 +186,19 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .b-critical{background:rgba(242,109,109,.15);color:var(--bad);box-shadow:0 0 12px rgba(242,109,109,.25)}
 .b-high{background:rgba(240,180,83,.15);color:var(--warn)}
 .b-ok{background:rgba(62,207,142,.15);color:var(--good)}
+/* health score */
+#scorechip{display:flex;align-items:center;gap:12px;background:var(--panel);
+border:1px solid var(--border);border-radius:14px;padding:8px 16px 8px 8px;margin-left:18px}
+#scorechip svg{display:block}
+#scorechip .sc{font-size:24px;font-weight:800;line-height:1}
+#scorechip .sc-lbl{font-size:11.5px;color:var(--muted);margin-top:3px}
+.g-good{color:var(--good)} .g-ok{color:var(--accent)} .g-warn{color:var(--warn)} .g-bad{color:var(--bad)}
+.dimrow{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:12.5px}
+.dimrow .dn{width:80px;color:var(--muted);flex-shrink:0}
+.dimrow .dm{flex:1}
+.dimrow .dv{width:150px;color:var(--muted);font-size:11.5px;text-align:right;flex-shrink:0;
+overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dimrow .dp{width:44px;text-align:right;font-weight:700;flex-shrink:0}
 
 /* ---- source browser ---- */
 .browser{display:grid;grid-template-columns:300px 1fr;gap:14px}
@@ -439,7 +454,32 @@ function callsDetail(id){
     + `<div style="margin-top:4px">被调用 ← ${ins.length? chips(ins):'—'}</div>`;
 }
 
-/* ---- charts: donuts + heatmap ---- */
+/* ---- charts: donuts + heatmap + health ---- */
+const GRADE_COLOR = {good:'#3ecf8e', ok:'#6aa6ff', warn:'#f0b453', bad:'#f26d6d'};
+function drawHealth(){
+  const h = DATA.health;
+  const color = GRADE_COLOR[h.grade_class] || '#6aa6ff';
+  const R = 52, C = 2 * Math.PI * R, frac = h.total / 100;
+  document.getElementById('healthdial').innerHTML =
+    `<svg width="140" height="140">
+      <circle r="${R}" cx="70" cy="70" fill="none" stroke="#1a2338" stroke-width="14"/>
+      <circle r="${R}" cx="70" cy="70" fill="none" stroke="${color}" stroke-width="14"
+        stroke-linecap="round" stroke-dasharray="${(frac*C).toFixed(1)} ${C}"
+        transform="rotate(-90 70 70)"/>
+      <text x="70" y="66" text-anchor="middle" fill="${color}" font-size="26" font-weight="800">${h.total}</text>
+      <text x="70" y="86" text-anchor="middle" fill="#8d9bbd" font-size="11">${esc(h.grade)}</text>
+    </svg>`;
+  document.getElementById('healthbars').innerHTML = h.dimensions.map(d=>{
+    const pct = d.max_penalty ? Math.round(d.penalty / d.max_penalty * 100) : 0;
+    const pc = pct >= 60 ? 'var(--bad)' : pct >= 30 ? 'var(--warn)' : 'var(--good)';
+    return `<div class="dimrow">
+      <span class="dn">${esc(d.name)}</span>
+      <span class="dm"><div class="meter"><div style="width:${pct}%;background:${pc}"></div></div></span>
+      <span class="dv" title="${esc(d.detail)}">${esc(d.detail)}</span>
+      <span class="dp" style="color:${d.penalty ? 'var(--warn)' : 'var(--good)'}">${d.penalty ? '-'+d.penalty : '满分'}</span>
+    </div>`;
+  }).join('');
+}
 function donut(el, entries, colors){
   const total = entries.reduce((s,[,v])=>s+v,0) || 1;
   const R = 52, C = 2 * Math.PI * R;
@@ -484,6 +524,7 @@ function drawCharts(){
     c.onmouseenter = () => info.textContent = c.dataset.p;
     c.onclick = () => { showTab('src'); openFile(c.dataset.p); };
   });
+  drawHealth();
 }
 
 /* ---- source browser with syntax highlighting ---- */
@@ -554,6 +595,22 @@ function jumpToSymbol(q){
   if (s){ showTab('src'); openFile(s.file, s.line); }
 }
 
+/* header score chip */
+(function(){
+  const h = DATA.health;
+  const color = GRADE_COLOR[h.grade_class] || '#6aa6ff';
+  document.getElementById('scorenum').textContent = h.total;
+  document.getElementById('scorenum').classList.add('g-' + h.grade_class);
+  const R = 19, C = 2 * Math.PI * R, frac = h.total / 100;
+  document.getElementById('scoredial').innerHTML =
+    `<svg width="48" height="48">
+      <circle r="${R}" cx="24" cy="24" fill="none" stroke="#1a2338" stroke-width="5"/>
+      <circle r="${R}" cx="24" cy="24" fill="none" stroke="${color}" stroke-width="5"
+        stroke-linecap="round" stroke-dasharray="${(frac*C).toFixed(1)} ${C}"
+        transform="rotate(-90 24 24)"/>
+    </svg>`;
+})();
+
 /* landing tab: draw deps graph once fonts/layout ready */
 window.addEventListener('load', () => drawGraph('deps'));
 """
@@ -617,6 +674,10 @@ def render_interactive_report(analyzer: RepoAnalyzer, path: str) -> str:
   <div class="brand">
     <h1>⌘ repoinsight 驾驶舱</h1>
     <span class="tag">交互式代码分析</span>
+    <div id="scorechip" title="架构健康分:点「图谱总览」看扣分明细">
+      <span id="scoredial"></span>
+      <span><span class="sc" id="scorenum">--</span><br><span class="sc-lbl">架构健康分</span></span>
+    </div>
     <input id="search" placeholder="搜索 / 过滤 模块与文件…" autocomplete="off">
     <span class="root">{esc(s['root'])}</span>
   </div>
@@ -656,6 +717,11 @@ def render_interactive_report(analyzer: RepoAnalyzer, path: str) -> str:
         <div class="donutwrap"><div id="donut-lang"></div><div class="dlegend" id="leg-lang"></div></div></div>
       <div class="chartbox"><h3>符号类型分布</h3>
         <div class="donutwrap"><div id="donut-kind"></div><div class="dlegend" id="leg-kind"></div></div></div>
+      <div class="chartbox" style="grid-column:1/-1"><h3>架构健康分（100 分制，扣分项一目了然）</h3>
+        <div class="donutwrap">
+          <div id="healthdial"></div>
+          <div style="flex:1;min-width:320px" id="healthbars"></div>
+        </div></div>
       <div class="chartbox" style="grid-column:1/-1"><h3>文件热力格（每格一个文件，越亮代码越多，悬停看路径，点击打开源码）</h3>
         <div class="heat" id="heat"></div><div class="heatwrap" id="heatinfo">&nbsp;</div></div>
     </div>
