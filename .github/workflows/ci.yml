@@ -24,8 +24,24 @@ jobs:
         run: |
           PYTHONPATH=src python -m repoinsight.cli summary src
           PYTHONPATH=src python -m repoinsight.cli lint src || true
+          PYTHONPATH=src python -m repoinsight.cli score src --min 50
           PYTHONPATH=src python -m repoinsight.cli report src --interactive -o self-report.html
       - uses: actions/upload-artifact@v4
         with:
           name: self-report
           path: self-report.html
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 验证可以打包安装
+        run: |
+          python -m pip install --upgrade pip build pytest
+          python -m build --sdist --wheel
+          python -m pip install dist/*.whl
+          repoinsight --version
+          python -m pytest tests/ -q

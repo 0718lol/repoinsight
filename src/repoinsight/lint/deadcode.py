@@ -9,6 +9,7 @@ because they are usually invoked from outside the codebase.
 
 from __future__ import annotations
 
+import fnmatch
 from typing import List, Set
 
 from ..models import AnalysisResult
@@ -36,7 +37,7 @@ def _used_simple_names(result: AnalysisResult) -> Set[str]:
     return used
 
 
-def find_dead_symbols(result: AnalysisResult) -> List[Finding]:
+def find_dead_symbols(result: AnalysisResult, extra_entrypoints: List[str] = None) -> List[Finding]:
     called: Set[str] = {callee for _, callee in result.call_edges}
     used_names = _used_simple_names(result)
     findings: List[Finding] = []
@@ -46,7 +47,7 @@ def find_dead_symbols(result: AnalysisResult) -> List[Finding]:
         name = sym.name
         if name.startswith("__") and name.endswith("__"):
             continue
-        if name in _ENTRYPOINT_NAMES or name.startswith(_ENTRYPOINT_PREFIXES):
+        if _is_entrypoint(name, extra_entrypoints):
             continue
         if sym.qualified_name in called:
             continue
@@ -62,6 +63,16 @@ def find_dead_symbols(result: AnalysisResult) -> List[Finding]:
         )
     findings.sort(key=lambda f: f.message)
     return findings
+
+
+def _is_entrypoint(name: str, extra: List[str] = None) -> bool:
+    """Entry-point style names are usually invoked from outside the code."""
+    if name in _ENTRYPOINT_NAMES or name.startswith(_ENTRYPOINT_PREFIXES):
+        return True
+    for pattern in extra or []:
+        if fnmatch.fnmatch(name, pattern):
+            return True
+    return False
 
 
 def find_unused_imports(result: AnalysisResult) -> List[Finding]:

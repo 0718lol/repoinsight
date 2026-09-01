@@ -59,6 +59,7 @@
 | `lint/` | 体检:循环依赖(Tarjan)、死代码、分层规则 | `lint.run_all(result)` |
 | `health.py` | 架构健康分:0-100 分 + 5 个维度的扣分明细 | `health.score(result)` |
 | `compare.py` | 对比两个 git 版本:文件/符号/调用边/复杂度增减 | `compare_refs(root, a, b)` |
+| `config.py` | 读 `.repoinsight.json`:ignore / 分层规则 / 豁免名单 / 门禁线 | `load_config(root)` |
 | `gitinfo.py` | git 历史:文件改动频率、两次提交 diff | `git_hotspots()` |
 | `output.py` | 文字摘要 / JSON / DOT 图 | `write_*()` |
 | `report/html_report.py` | 简版静态 HTML 报告 | `render_html_report()` |
@@ -99,6 +100,11 @@
 **③b 调整健康分算法**
 1. 打开 `health.py` 的 `score()`:每个维度是一个 `Dimension(名称, 扣分, 上限, 说明)`。
 2. 改权重或加维度都在那一个函数里;报告和 CLI 会自动展示新维度。
+
+**③c 加一个配置项**
+1. 在 `config.py` 的 `_DEFAULTS` 里加默认值,并在 `load_config()` 里做类型校验(中文报错)。
+2. 在 `cli.py` 的 `_run()` 里把它从 `args.config_data` 传给需要的命令。
+3. 测试加到 `tests/test_config.py`(该校验走 `main([...])` 全链路)。
 
 **④ 给交互报告加一个模块/图表**
 1. 数据:在 `report/interactive.py` 的 `_collect_data()` 里加字段(纯 Python,先测 JSON)。

@@ -5,7 +5,21 @@
 - ✅ 零依赖:只用 Python 标准库(3.9+),`pip install` 秒装
 - ✅ 单文件交互报告:HTML 双击就能开,不需要服务器、不需要联网
 - ✅ 全中文界面
-- ✅ 73 项单元测试
+- ✅ 94 项单元测试,四版本 CI
+
+## 效果预览
+
+**模块依赖图**(可拖拽 / 缩放 / 点击看详情):
+
+![依赖图](docs/screenshots/dependency-graph.png)
+
+**架构健康分**(100 分制,扣在哪一目了然):
+
+![健康分](docs/screenshots/health-score.png)
+
+**源码浏览器**(语法高亮 + 符号跳转):
+
+![源码浏览](docs/screenshots/source-browser.png)
 
 ## 快速上手
 
@@ -54,6 +68,38 @@ repoinsight summary 你的项目/
 repoinsight lint 项目/ --rules rules.json
 ```
 
+## 配置文件
+
+在项目根目录放一个 `.repoinsight.json`(全部可选),所有命令自动读取:
+
+```json
+{
+  "ignore": ["docs", "scratch"],            // 额外跳过的目录
+  "forbidden_edges": [["ui.*", "core.*"]],  // 分层规则:禁止 ui 引 core
+  "entrypoints": ["handle_*"],              // 死代码检查的豁免名单(框架回调等)
+  "min_score": 70                           // 健康分门禁线
+}
+```
+
+也可以用 `--config 路径` 指定其他配置文件。
+
+## CI 门禁:不让架构变差
+
+健康分低于门槛时 `score` 命令以失败退出,可以直接当 CI 卡点:
+
+```bash
+repoinsight score 项目/ --min 70     # 低于 70 分 → 退出码 1,CI 失败
+```
+
+或者直接用本仓库提供的 GitHub Action(任何仓库可用):
+
+```yaml
+- uses: 0718lol/repoinsight@main
+  with:
+    path: src
+    args: --min 70
+```
+
 ## 用它分析它自己
 
 ```bash
@@ -66,11 +112,14 @@ open 自检报告.html
 看 [ARCHITECTURE.md](ARCHITECTURE.md):数据流水线图、每个文件职责表、
 「加一门语言 / 加一个度量 / 加一条 lint 规则 / 加一个图表 / 加一条命令」的逐步修改路径。
 
-## 测试
+## 测试与发布
 
 ```bash
 python3 -m pytest tests/ -q
 ```
+
+发布到 PyPI:打 `v*` 标签推送即可,`.github/workflows/publish.yml` 会自动构建并上传
+(首次使用需在 PyPI 上为本仓库配置 trusted publisher,或在仓库 Secrets 里配 `PYPI_API_TOKEN`)。
 
 ## License
 

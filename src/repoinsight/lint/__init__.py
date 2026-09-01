@@ -13,8 +13,12 @@ __all__ = [
 ]
 
 
-def run_all(result, rules=None):
-    """Run every check against an AnalysisResult; rules optional (layers)."""
+def run_all(result, rules=None, entrypoints=None):
+    """Run every check against an AnalysisResult.
+
+    rules: optional layer rules dict; entrypoints: optional extra fnmatch
+    patterns of names that dead-code detection should treat as used.
+    """
     findings: list = []
     for cycle in find_cycles(result.module_dependencies):
         findings.append(
@@ -25,7 +29,7 @@ def run_all(result, rules=None):
                 items=cycle,
             )
         )
-    findings.extend(find_dead_symbols(result))
+    findings.extend(find_dead_symbols(result, extra_entrypoints=entrypoints))
     findings.extend(find_unused_imports(result))
     if rules:
         findings.extend(check_layers(result.module_dependencies, rules))

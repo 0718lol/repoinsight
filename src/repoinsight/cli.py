@@ -24,6 +24,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         description="Python 代码库静态分析工具:符号表、调用图、模块依赖图与代码度量。",
     )
     p.add_argument("--version", action="version", version=f"repoinsight {__version__}")
+    p.add_argument("--config", help="配置文件路径(默认读项目根目录的 .repoinsight.json)")
     sub = p.add_subparsers(dest="command", required=True)
 
     def common(sp: argparse.ArgumentParser) -> None:
@@ -67,6 +68,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     sp_score = sub.add_parser("score", help="给项目打架构健康分(0-100,含扣分明细)")
     common(sp_score)
+    sp_score.add_argument("--min", type=int, default=None, dest="min_score",
+                          help="门禁:低于该分数就以失败退出(也可写在配置文件 min_score)")
 
     sp_diff = sub.add_parser("diff", help="对比两个 git 版本之间架构的变化")
     common(sp_diff)
@@ -130,11 +133,16 @@ def _cmd_report(analyzer: RepoAnalyzer, args: argparse.Namespace) -> int:
 
 def _cmd_lint(analyzer: RepoAnalyzer, args: argparse.Namespace) -> int:
     from .lint import run_all
-    rules = None
-    if args.rules and Path(args.rules).exists():
+    cfg = args.config_data or {}
+    if args.rules:
         import json as _json
         rules = _json.loads(Path(args.rules).read_text(encoding="utf-8"))
-    findings = run_all(analyzer.result, rules=rules)
+    elif cfg.get("forbidden_edges"):
+        rules = {"forbidden_edges": cfg["forbidden_edges"]}
+    else:
+        rules = None
+    findings = run_all(analyzer.result, rules=rules,
+                       entrypoints=cfg.get("entrypoints"))
     if not findings:
         print("没有发现任何问题,很干净")
         return 0
@@ -204,6 +212,16 @@ def _cmd_score(analyzer: RepoAnalyzer, args: argparse.Namespace) -> int:
         print(f"  {d.name:<6} {lost:>4} {bar}")
         if d.penalty:
             print(f"         └ {d.detail}")
+
+    threshold = args.min_score
+    if threshold is None:
+        threshold = (args.config_data or {}).get("min_score")
+    if threshold is not None:
+        if hs.total < threshold:
+            print(f"门禁失败:健康分 {hs.total} 低于要求的 {threshold}")
+            return 1
+        print(f"门禁通过:健康分 {hs.total} ≥ {threshold}")
+
     if args.output:
         import json as _json
         Path(args.output).write_text(
@@ -244,7 +262,10 @@ def _run(args: argparse.Namespace) -> int:
     if not root.exists():
         print(f"错误:路径不存在:{root}", file=sys.stderr)
         return 2
-    analyzer = RepoAnalyzer(str(root), ignored_dirs=args.ignore)
+    from .config import load_config
+    args.config_data = load_config(str(root), getattr(args, "config", None))
+    ignore = list(args.ignore) + list(args.config_data.get("ignore", []))
+    analyzer = RepoAnalyzer(str(root), ignored_dirs=ignore)
     analyzer.analyze()
     return _COMMANDS[args.command](analyzer, args)
 
@@ -256,6 +277,9 @@ def main(argv=None) -> int:
     except KeyboardInterrupt:
         print("已中断", file=sys.stderr)
         return 130
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
