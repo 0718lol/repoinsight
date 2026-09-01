@@ -99,6 +99,28 @@ def test_imports_absolute_and_relative():
     assert ("util", True, 1) in modules
 
 
+def test_var_types_tracked_from_assignments():
+    src = '''from helpers import Engine, make
+
+
+def run():
+    e = Engine()
+    f: Engine = make()
+    g = "not a class"
+    h = build_it()
+    return e.start() + f.stop()
+'''
+    parser = _parse(src)
+    run = next(s for s in parser.symbols if s.qualified_name == "run")
+    assert run.var_types == {"e": "Engine", "f": "Engine"}
+
+
+def test_var_types_empty_for_plain_functions():
+    src = "def f():\n    return 1\n"
+    parser = _parse(src)
+    assert parser.symbols[0].var_types == {}
+
+
 def test_line_spans():
     parser = _parse(CORE_SOURCE)
     child = next(s for s in parser.symbols if s.qualified_name == "Child")

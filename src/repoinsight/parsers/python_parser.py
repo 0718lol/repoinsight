@@ -95,19 +95,21 @@ class PythonParser:
                 self._collect_class_imports(child)
             else:
                 sym.decorators = [_name_of(d) for d in child.decorator_list]
-                body_calls, branch_count = self._scan_body(child)
+                body_calls, branch_count, var_types = self._scan_body(child)
                 sym.calls = body_calls
                 sym.complexity = 1 + branch_count
+                sym.var_types = var_types
 
             self.symbols.append(sym)
             self._scope_kinds[qualified] = kind
             self._walk(child, prefix=qualified)
 
     # ------------------------------------------------------------------ #
-    def _scan_body(self, func: ast.AST) -> "tuple[List[str], int]":
-        """Collect call names and count branches inside a function body."""
+    def _scan_body(self, func: ast.AST) -> "tuple[List[str], int, dict]":
+        """Collect call names, branches and local variable type hints."""
         calls: List[str] = []
         branches = 0
+        var_types: dict = {}
         stack = [getattr(func, "body", [])]
         while stack:
             for stmt in stack.pop():
@@ -120,7 +122,29 @@ class PythonParser:
                         branches += 1
                     elif isinstance(sub, ast.BoolOp):
                         branches += max(0, len(sub.values) - 1)
-        return calls, branches
+                    elif isinstance(sub, ast.Assign) and len(sub.targets) == 1:
+                        self._record_assign(sub.targets[0], sub.value, var_types)
+                    elif isinstance(sub, ast.AnnAssign) and sub.value is not None:
+                        self._record_assign(sub.target, sub.value, var_types,
+                                            annotation=sub.annotation)
+        return calls, branches, var_types
+
+    def _record_assign(self, target: ast.AST, value: ast.AST,
+                       var_types: dict, annotation: ast.AST = None) -> None:
+        """Track simple cases: `x: ClassName = ...` always, and `x = Name(...)`
+        only when the name looks like a class (uppercase first letter), so
+        factory functions like `make()` are not mistaken for constructors."""
+        if not isinstance(target, ast.Name):
+            return
+        if annotation is not None:
+            cls = _name_of(annotation)
+            if cls and "." not in cls:
+                var_types[target.id] = cls
+            return
+        if isinstance(value, ast.Call):
+            cls = _name_of(value.func)
+            if cls and "." not in cls and cls[:1].isupper():
+                var_types[target.id] = cls
 
     # ------------------------------------------------------------------ #
     def _collect_class_imports(self, cls: ast.ClassDef) -> None:

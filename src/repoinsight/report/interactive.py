@@ -18,6 +18,25 @@ from ..health import score as health_score
 
 MAX_SOURCE_LINES = 500
 MAX_CALL_NODES = 80
+MAX_GRAPH_MODULES = 150   # beyond this, the deps graph switches to package view
+MAX_EMBEDDED_FILES = 200  # source browser embeds only the biggest files
+
+
+def aggregate_deps_by_package(deps: Dict[str, List[str]]) -> Dict[str, List[str]]:
+    """Collapse a module-level dependency graph to top-level packages.
+
+    Used when a repository is too big for a readable per-module graph.
+    Self-package edges are dropped; the result keeps sorted determinism.
+    """
+    out: Dict[str, set] = {}
+    for src, targets in deps.items():
+        pkg = src.split(".")[0]
+        for t in targets:
+            tp = t.split(".")[0]
+            if tp == pkg:
+                continue
+            out.setdefault(pkg, set()).add(tp)
+    return {k: sorted(v) for k, v in sorted(out.items())}
 
 
 def esc(v) -> str:
@@ -27,9 +46,6 @@ def esc(v) -> str:
 # ---------------------------------------------------------------------- #
 def _collect_data(analyzer: RepoAnalyzer) -> Dict:
     result = analyzer.result
-    modules = set(result.module_dependencies)
-    for deps in result.module_dependencies.values():
-        modules.update(deps)
 
     degree: Dict[str, int] = {}
     for a, b in result.call_edges:
@@ -37,21 +53,40 @@ def _collect_data(analyzer: RepoAnalyzer) -> Dict:
         degree[b] = degree.get(b, 0) + 1
     keep = {n for n, _ in sorted(degree.items(), key=lambda kv: -kv[1])[:MAX_CALL_NODES]}
 
+    # sources: embed the biggest python files, note truncated ones
     sources: Dict[str, List[str]] = {}
-    for f in result.files:
-        if f.language != "python":
-            continue
+    truncated: Dict[str, int] = {}
+    py_files = sorted(
+        (f for f in result.files if f.language == "python"),
+        key=lambda f: -f.lines_code,
+    )
+    for f in py_files[:MAX_EMBEDDED_FILES]:
         try:
-            lines = Path(f.absolute_path).read_text(encoding="utf-8", errors="replace").splitlines()
+            full = Path(f.absolute_path).read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
+        lines = full.splitlines()
+        if len(lines) > MAX_SOURCE_LINES:
+            truncated[f.path] = len(lines)
         sources[f.path] = lines[:MAX_SOURCE_LINES]
+
+    # graph mode: switch to package-level view for very large repos
+    modules = sorted(set(result.module_dependencies)
+                     | {d for ts in result.module_dependencies.values() for d in ts})
+    graph_mode = "module"
+    module_deps = result.module_dependencies
+    if len(modules) > MAX_GRAPH_MODULES:
+        graph_mode = "package"
+        module_deps = aggregate_deps_by_package(result.module_dependencies)
+        modules = sorted(set(module_deps)
+                         | {d for ts in module_deps.values() for d in ts})
 
     return {
         "summary": analyzer.summary(),
         "health": health_score(result).to_dict(),
-        "modules": sorted(modules),
-        "moduleDeps": result.module_dependencies,
+        "graphMode": graph_mode,
+        "modules": modules,
+        "moduleDeps": module_deps,
         "callEdges": [list(e) for e in result.call_edges if e[0] in keep and e[1] in keep],
         "files": analyzer.file_metrics(),
         "complexity": analyzer.complexity_report(top=40),
@@ -65,6 +100,8 @@ def _collect_data(analyzer: RepoAnalyzer) -> Dict:
             for s in result.symbols
         ],
         "sources": sources,
+        "truncatedFiles": truncated,
+        "embeddedLimit": MAX_EMBEDDED_FILES,
     }
 
 
@@ -364,11 +401,16 @@ function drawGraph(kind){
     };
   });
   render();
-  /* package legend for the deps graph */
+  /* package legend + big-repo notice for the deps graph */
   if (kind === 'deps'){
     const pkgs = [...new Set(sim.nodes.map(n => pkgOf(n.id)))];
     document.getElementById('legend-deps').innerHTML = pkgs.map(p =>
       `<span><i style="background:${pkgColor(p)}"></i>${esc(p)}</span>`).join('');
+    if (DATA.graphMode === 'package'){
+      document.getElementById('detail-deps').innerHTML =
+        '⚠ 该仓库模块较多,依赖图已按<b>顶层包</b>聚合展示(滚动缩放查看)。' +
+        '悬停/点击节点查看包级依赖。';
+    }
   }
 }
 function touch(sim, id){
@@ -545,6 +587,12 @@ function hl(line){
   return s;
 }
 function openFile(path, line){
+  if (!(path in DATA.sources)){
+    srcWrap.innerHTML = `<pre class="src"><span class="lc">⚠ 该文件未嵌入报告(仅嵌入代码行最多的 ${DATA.embeddedLimit} 个文件)。请用命令行或编辑器查看完整内容。</span></pre>`;
+    symBox.innerHTML = '';
+    [...fileList.children].forEach(c => c.classList.toggle('sel', c.dataset.path === path));
+    return;
+  }
   [...fileList.children].forEach(c => c.classList.toggle('sel', c.dataset.path === path));
   const lines = DATA.sources[path] || [];
   let body = '';
@@ -552,6 +600,11 @@ function openFile(path, line){
     const on = (line && i + 1 === line) ? ' on' : '';
     body += `<span class="ln">${i + 1}</span><span class="lc${on}">${hl(l) || ' '}</span>\n`;
   });
+  const cut = DATA.truncatedFiles[path];
+  if (cut){
+    body += `<span class="ln">…</span><span class="lc" style="color:#8d9bbd">`
+          + `⚠ 该文件共 ${cut} 行,报告仅嵌入前 ${lines.length} 行</span>\n`;
+  }
   srcWrap.innerHTML = `<pre class="src">${body}</pre>`;
   symBox.innerHTML = '';
   (symsByFile[path] || []).forEach(s => {

@@ -49,20 +49,29 @@ class CallGraph:
         target = self.imported_names.get(module, {}).get(raw)
         if target and target in self.by_qualified:
             return target
-        # dotted call like "mod.helper()" imported as "import pkg.mod"
         if "." in raw:
             head, rest = raw.split(".", 1)
+            # dotted import like "mod.helper()" imported as "import pkg.mod"
             head_target = self.imported_names.get(module, {}).get(head)
             if head_target:
                 candidate = f"{head_target}.{rest}"
                 if candidate in self.by_qualified:
                     return candidate
-        # 2. Method call inside the same class: self.method(...)
-        if raw.startswith("self.") and caller.parent:
-            candidate = f"{caller.parent}.{raw.split('.', 1)[1]}"
-            if candidate in self.by_qualified:
-                return candidate
-        # 3. Same-scope simple name (sibling function in module or class).
+            # 2. typed local variable: cart = Cart(); cart.add(...)
+            cls_name = (caller.var_types or {}).get(head)
+            if cls_name:
+                class_q = self._find_class(module, cls_name)
+                if class_q:
+                    resolved = self._method_on_class(class_q, rest)
+                    if resolved:
+                        return resolved
+            # 3. method call inside the same class: self.method(...),
+            #    walking up the inheritance chain when needed
+            if raw.startswith("self.") and caller.parent:
+                resolved = self._method_on_class(caller.parent, rest)
+                if resolved:
+                    return resolved
+        # 4. Same-scope simple name (sibling function in module or class).
         if raw in self.by_name:
             candidates = self.by_name[raw]
             # prefer a sibling in the same parent scope, else same module
@@ -75,6 +84,38 @@ class CallGraph:
             if same_module:
                 return sorted(same_module)[0]
             return sorted(candidates)[0]
+        return None
+
+    # ------------------------------------------------------------------ #
+    def _find_class(self, module: str, simple_name: str) -> Optional[str]:
+        """Locate a class by simple name: same module first, then imports."""
+        candidate = f"{module}.{simple_name}"
+        if candidate in self.by_qualified:
+            return candidate
+        imported = self.imported_names.get(module, {}).get(simple_name)
+        if imported and imported in self.by_qualified:
+            return imported
+        return None
+
+    def _method_on_class(self, class_q: str, rest: str, depth: int = 0) -> Optional[str]:
+        """Resolve `rest` as a method/attribute path on class_q, walking
+        base classes up to a few levels for inherited methods."""
+        if depth > 4:
+            return None
+        candidate = f"{class_q}.{rest}"
+        if candidate in self.by_qualified:
+            return candidate
+        cls_sym = self.by_qualified.get(class_q)
+        if cls_sym is None or cls_sym.kind != "class":
+            return None
+        module = self.module_of_symbol.get(class_q, "")
+        for base in cls_sym.bases:
+            simple = base.split(".")[-1]
+            base_q = self._find_class(module, simple)
+            if base_q:
+                resolved = self._method_on_class(base_q, rest, depth + 1)
+                if resolved:
+                    return resolved
         return None
 
     # ------------------------------------------------------------------ #

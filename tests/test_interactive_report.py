@@ -59,3 +59,55 @@ def test_json_blob_parses(tmp_path, analysis):
     data = json.loads(blob.replace("<\\/", "</"))
     assert data["summary"]["python_files"] == 7
     assert "pkg.cyclic_b" in data["moduleDeps"]["pkg.cyclic_a"]
+
+
+def test_package_aggregation():
+    from repoinsight.report.interactive import aggregate_deps_by_package
+    deps = {
+        "a.core.x": ["a.core.y", "b.util.z"],
+        "b.util.z": ["b.util.w", "c.thing.q"],
+    }
+    out = aggregate_deps_by_package(deps)
+    assert out == {"a": ["b"], "b": ["c"]}  # self-package edges dropped
+
+
+def test_truncation_flag_and_cap(tmp_path):
+    from repoinsight.analyzer import RepoAnalyzer
+    from repoinsight.report.interactive import _collect_data
+
+    root = tmp_path / "big"
+    root.mkdir()
+    long_file = root / "long.py"
+    long_file.write_text("\n".join(f"x{i} = {i}" for i in range(700)), encoding="utf-8")
+    (root / "short.py").write_text("a = 1\n", encoding="utf-8")
+
+    analyzer = RepoAnalyzer(str(root))
+    analyzer.analyze()
+    data = _collect_data(analyzer)
+    assert len(data["sources"]["long.py"]) == 500
+    assert data["truncatedFiles"]["long.py"] == 700
+    assert "short.py" not in data["truncatedFiles"]
+    assert data["graphMode"] == "module"
+
+
+def test_big_repo_switches_to_package_mode(tmp_path):
+    from repoinsight.analyzer import RepoAnalyzer
+    from repoinsight.report.interactive import _collect_data
+
+    root = tmp_path / "huge"
+    root.mkdir()
+    # 152 modules (>150 threshold) with cross-package imports
+    for pkg in ("aa", "bb"):
+        (root / pkg).mkdir()
+        (root / pkg / "__init__.py").write_text("", encoding="utf-8")
+    for i in range(152):
+        pkg = "aa" if i % 2 == 0 else "bb"
+        target = "bb.m1" if pkg == "aa" else "aa.m0"
+        (root / pkg / f"m{i}.py").write_text(
+            f"from {target} import x\n", encoding="utf-8")
+    analyzer = RepoAnalyzer(str(root))
+    analyzer.analyze()
+    data = _collect_data(analyzer)
+    assert data["graphMode"] == "package"
+    assert set(data["modules"]) == {"aa", "bb"}
+    assert data["moduleDeps"] == {"aa": ["bb"], "bb": ["aa"]}

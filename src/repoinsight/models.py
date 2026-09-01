@@ -42,6 +42,9 @@ class Symbol:
     decorators: List[str] = field(default_factory=list)
     bases: List[str] = field(default_factory=list)   # for classes
     complexity: int = 1                     # cyclomatic complexity
+    # local variable type hints: "cart = Cart()" records {"cart": "Cart"};
+    # lets the call graph resolve instance-method calls like cart.add(...)
+    var_types: Dict[str, str] = field(default_factory=dict)
 
     @property
     def is_function_like(self) -> bool:
