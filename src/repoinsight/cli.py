@@ -15,6 +15,7 @@ from .output import (
     write_summary_text,
 )
 from .report import render_html_report
+from .report.interactive import render_interactive_report
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -47,12 +48,23 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     sp_report = sub.add_parser("report", help="self-contained HTML report (open in a browser)")
     common(sp_report)
+    sp_report.add_argument("--interactive", action="store_true",
+                           help="interactive report: force graphs, source browser, search")
     sp_report.add_argument("--open", action="store_true",
                            help="open the report in the default browser afterwards")
 
     sp_who = sub.add_parser("who-calls", help="list callers/callees of a function")
     common(sp_who)
     sp_who.add_argument("symbol", help="function name (simple or qualified)")
+
+    sp_lint = sub.add_parser("lint", help="circular deps, dead code, layer rules")
+    common(sp_lint)
+    sp_lint.add_argument("--rules", help="JSON file with layer rules "
+                                          '{"forbidden_edges": [[importer, imported], ...]}')
+
+    sp_hot = sub.add_parser("hotspots", help="files ranked by churn x size (needs git)")
+    common(sp_hot)
+    sp_hot.add_argument("--top", type=int, default=20, help="how many files to show")
 
     return p
 
@@ -95,11 +107,53 @@ def _run(args: argparse.Namespace) -> int:
 
     if cmd == "report":
         out = args.output or "repoinsight-report.html"
-        render_html_report(analyzer, out)
+        if args.interactive:
+            render_interactive_report(analyzer, out)
+        else:
+            render_html_report(analyzer, out)
         print(f"HTML report written to {out}  (open it in a browser)")
         if args.open:
             import webbrowser
             webbrowser.open(f"file://{Path(out).resolve()}")
+        return 0
+
+    if cmd == "lint":
+        from .lint import run_all
+        rules = None
+        if args.rules and Path(args.rules).exists():
+            import json as _json
+            rules = _json.loads(Path(args.rules).read_text(encoding="utf-8"))
+        findings = run_all(analyzer.result, rules=rules)
+        if not findings:
+            print("no findings — clean")
+            return 0
+        for f in findings:
+            print(f"[{f.severity}] {f.kind}: {f.message}")
+        if args.output:
+            import json as _json
+            Path(args.output).write_text(
+                _json.dumps([f.to_dict() for f in findings], indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            print(f"findings written to {args.output}")
+        return 1 if any(f.severity == "error" for f in findings) else 0
+
+    if cmd == "hotspots":
+        from .gitinfo import combine_hotspots, git_hotspots
+        spots = git_hotspots(str(root))
+        rows = combine_hotspots(analyzer.file_metrics(), spots)
+        shown = 0
+        for r in rows:
+            if shown >= args.top:
+                break
+            print(f"  {r['score']:.3f}  commits={r['commits']:<4} {r['path']}")
+            shown += 1
+        if args.output:
+            import json as _json
+            Path(args.output).write_text(
+                _json.dumps(rows, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
+            print(f"hotspot data written to {args.output}")
         return 0
 
     if cmd == "who-calls":
