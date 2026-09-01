@@ -47,13 +47,13 @@ def test_write_summary_text(tmp_path, analysis):
     out = tmp_path / "summary.txt"
     write_summary_text(analysis, str(out))
     text = out.read_text(encoding="utf-8")
-    assert "REPOINSIGHT SUMMARY" in text
+    assert "REPOINSIGHT 代码库分析摘要" in text
     assert "pkg/core.py" in text
 
 
 def test_summary_text_stdout(analysis):
     text = write_summary_text(analysis, None)
-    assert "HIGHEST COMPLEXITY" in text
+    assert "复杂度最高的函数" in text
 
 
 def test_html_report_is_self_contained(tmp_path, analysis):

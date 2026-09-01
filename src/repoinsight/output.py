@@ -84,37 +84,37 @@ def write_summary_text(analyzer: RepoAnalyzer, path: Optional[str] = None) -> st
     """Human-readable summary; prints to stdout if path is None."""
     s = analyzer.summary()
     lines: List[str] = []
-    lines.append("REPOINSIGHT SUMMARY")
+    lines.append("REPOINSIGHT 代码库分析摘要")
     lines.append(_rule("="))
-    lines.append(f"Root:               {s['root']}")
-    lines.append(f"Files:              {s['files']} ({s['python_files']} python)")
-    lines.append(f"Lines (code/total): {s['code_lines']} / {s['total_lines']}")
-    lines.append(f"Symbols:            {s['symbols']} ({s['classes']} classes, {s['functions']} functions)")
-    lines.append(f"Module dep edges:   {s['module_dependencies']}")
-    lines.append(f"Call graph edges:   {s['call_edges']}")
-    lines.append(f"Parse errors:       {s['parse_errors']}")
+    lines.append(f"项目路径:        {s['root']}")
+    lines.append(f"文件数量:        {s['files']} 个(其中 Python {s['python_files']} 个)")
+    lines.append(f"代码行:          {s['code_lines']} / 总行数 {s['total_lines']}")
+    lines.append(f"符号总数:        {s['symbols']}(类 {s['classes']} 个,函数/方法 {s['functions']} 个)")
+    lines.append(f"模块依赖边:      {s['module_dependencies']}")
+    lines.append(f"函数调用边:      {s['call_edges']}")
+    lines.append(f"解析失败文件:    {s['parse_errors']}")
     lines.append("")
 
-    lines.append("TOP FILES BY CODE LINES")
+    lines.append("代码行数最多的文件")
     lines.append(_rule())
     for row in analyzer.file_metrics()[:15]:
         lines.append(f"  {row['code']:>7}  {row['path']}")
     lines.append("")
 
-    lines.append("HIGHEST COMPLEXITY")
+    lines.append("复杂度最高的函数")
     lines.append(_rule())
     for row in analyzer.complexity_report(top=15):
         lines.append(f"  {row['complexity']:>4}   {row['name']}  ({row['file']}:{row['line']})")
     lines.append("")
 
-    lines.append("MOST COUPLED MODULES (fan-in + fan-out)")
+    lines.append("耦合最强的模块(被依赖 + 依赖)")
     lines.append(_rule())
     coupling = analyzer.coupling_report()
     ranked = sorted(
         coupling.items(), key=lambda kv: -(kv[1]["fan_in"] + kv[1]["fan_out"])
     )[:15]
     for mod, c in ranked:
-        lines.append(f"  in={c['fan_in']:<3} out={c['fan_out']:<3} {mod}")
+        lines.append(f"  被依赖 {c['fan_in']:<3} 依赖 {c['fan_out']:<3} {mod}")
 
     text = "\n".join(lines) + "\n"
     if path is None:

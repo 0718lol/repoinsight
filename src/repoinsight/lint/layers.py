@@ -31,8 +31,7 @@ def check_layers(module_dependencies: Dict[str, List[str]], rules: Dict) -> List
                         Finding(
                             kind="layer_violation",
                             severity="error",
-                            message=f"forbidden dependency {importer} -> {imported} "
-                                    f"(rule: {pat_importer} -/-> {pat_imported})",
+                            message=f"违反分层规则:{importer} → {imported}(规则:{pat_importer} 禁止 → {pat_imported})",
                             items=[importer, imported],
                         )
                     )

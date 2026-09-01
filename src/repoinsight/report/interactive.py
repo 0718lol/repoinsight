@@ -673,14 +673,14 @@ def render_interactive_report(analyzer: RepoAnalyzer, path: str) -> str:
   </div>
 
   <div class="tabpage" id="tab-cx">
-    <h2>圈复杂度 Top 40 <span class="hint">≥15 红 / 8–14 橙 / &lt;8 绿 · 点函数名跳源码</span></h2>
+    <h2>圈复杂度 前 40 名 <span class="hint">≥15 红 / 8–14 橙 / &lt;8 绿 · 点函数名跳源码</span></h2>
     <table><tr><th class="num">复杂度</th><th>函数</th><th>位置</th><th style="width:24%"></th></tr>
     {cx_rows}</table>
   </div>
 
   <div class="tabpage" id="tab-coupling">
-    <h2>模块耦合度 <span class="hint">fan-in 被多少人依赖 · fan-out 依赖多少人</span></h2>
-    <table><tr><th>模块</th><th class="num">被依赖 fan-in</th><th class="num">依赖 fan-out</th></tr>
+    <h2>模块耦合度 <span class="hint">被依赖 = 有多少人引用它 · 依赖 = 它引用了多少人</span></h2>
+    <table><tr><th>模块</th><th class="num">被依赖数</th><th class="num">依赖数</th></tr>
     {coupling_rows}</table>
   </div>
 </main>

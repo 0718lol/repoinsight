@@ -21,7 +21,7 @@ def run_all(result, rules=None):
             Finding(
                 kind="circular_dependency",
                 severity="error",
-                message="circular import: " + " -> ".join(cycle + [cycle[0]]),
+                message="循环导入:" + " → ".join(cycle + [cycle[0]]),
                 items=cycle,
             )
         )

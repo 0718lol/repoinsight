@@ -51,7 +51,7 @@ def find_dead_symbols(result: AnalysisResult) -> List[Finding]:
             Finding(
                 kind="dead_symbol",
                 severity="warning",
-                message=f"never called inside the project: {sym.qualified_name}",
+                message=f"项目内从未被调用:{sym.qualified_name}",
                 items=[sym.file, str(sym.line_start)],
             )
         )
@@ -86,7 +86,7 @@ def find_unused_imports(result: AnalysisResult) -> List[Finding]:
                 Finding(
                     kind="unused_import",
                     severity="warning",
-                    message=f"imported but never used: {', '.join(unused)}",
+                    message=f"导入了但从未使用:{', '.join(unused)}",
                     items=[imp.file, f"{imp.module}: {', '.join(unused)}", str(imp.line)],
                 )
             )
