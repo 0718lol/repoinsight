@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from typing import List, Optional
 
 from ..models import Import, Symbol
@@ -219,3 +220,12 @@ def _load_parser():
                 "install repoinsight[js] to enable it."
             ) from exc
     return get_parser("javascript")
+
+
+@lru_cache(maxsize=1)
+def javascript_backend_available() -> bool:
+    try:
+        _load_parser()
+    except Exception:
+        return False
+    return True
