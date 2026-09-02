@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from .call_graph import CallGraph
-from .models import AnalysisResult, SourceFile, Symbol
+from .models import AnalysisResult, Symbol
 from .module_graph import ModuleGraph
 from .parsers.python_parser import PythonParser
 from .scanner import RepoScanner

@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-from conftest import SRC  # ensure sys.path set before repoinsight import
-
 from repoinsight.scanner import RepoScanner, count_lines, detect_language
 
 

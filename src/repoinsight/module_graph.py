@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path, PurePosixPath
-from typing import Dict, List, Optional, Set, Tuple
+from pathlib import PurePosixPath
+from typing import Dict, List, Optional, Set
 
 from .models import Import, SourceFile
 
