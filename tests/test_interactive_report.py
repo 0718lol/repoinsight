@@ -69,7 +69,7 @@ def test_json_blob_parses(tmp_path, analysis):
 
 
 def test_package_aggregation():
-    from repoinsight.report.interactive import aggregate_deps_by_package
+    from repoinsight.report.interactive_data import aggregate_deps_by_package
     deps = {
         "a.core.x": ["a.core.y", "b.util.z"],
         "b.util.z": ["b.util.w", "c.thing.q"],
@@ -80,7 +80,7 @@ def test_package_aggregation():
 
 def test_truncation_flag_and_cap(tmp_path):
     from repoinsight.analyzer import RepoAnalyzer
-    from repoinsight.report.interactive import _collect_data
+    from repoinsight.report.interactive_data import collect_data
 
     root = tmp_path / "big"
     root.mkdir()
@@ -90,7 +90,7 @@ def test_truncation_flag_and_cap(tmp_path):
 
     analyzer = RepoAnalyzer(str(root))
     analyzer.analyze()
-    data = _collect_data(analyzer)
+    data = collect_data(analyzer)
     assert len(data["sources"]["long.py"]) == 500
     assert data["truncatedFiles"]["long.py"] == 700
     assert "short.py" not in data["truncatedFiles"]
@@ -99,7 +99,7 @@ def test_truncation_flag_and_cap(tmp_path):
 
 def test_big_repo_switches_to_package_mode(tmp_path):
     from repoinsight.analyzer import RepoAnalyzer
-    from repoinsight.report.interactive import _collect_data
+    from repoinsight.report.interactive_data import collect_data
 
     root = tmp_path / "huge"
     root.mkdir()
@@ -114,7 +114,7 @@ def test_big_repo_switches_to_package_mode(tmp_path):
             f"from {target} import x\n", encoding="utf-8")
     analyzer = RepoAnalyzer(str(root))
     analyzer.analyze()
-    data = _collect_data(analyzer)
+    data = collect_data(analyzer)
     assert data["graphMode"] == "package"
     assert set(data["modules"]) == {"aa", "bb"}
     assert data["moduleDeps"] == {"aa": ["bb"], "bb": ["aa"]}
