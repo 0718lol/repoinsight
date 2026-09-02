@@ -15,9 +15,16 @@ def test_renders_self_contained_html(tmp_path, analysis):
     # unique element ids (two graphs must not share ids)
     assert 'id="svg-deps"' in html and 'id="svg-calls"' in html
     assert 'id="detail-deps"' in html and 'id="detail-calls"' in html
-    # five tabs
-    for tab in ("deps", "calls", "src", "cx", "coupling"):
+    # The report opens on an explicit conclusion view, with analysis details
+    # kept in separate tabs.
+    assert 'data-tab="overview"' in html
+    assert 'class="tabpage active" id="tab-overview"' in html
+    assert "架构健康分" in html
+    assert "当前扫描范围" in html
+    for tab in ("overview", "deps", "calls", "charts", "src", "cx", "coupling"):
         assert f'data-tab="{tab}"' in html
+    assert 'role="tablist"' in html
+    assert 'aria-hidden="true"' in html
 
 
 def test_no_external_references(tmp_path, analysis):

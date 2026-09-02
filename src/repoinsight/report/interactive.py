@@ -167,6 +167,25 @@ h2{font-size:12.5px;margin:2px 0 14px;color:var(--muted);font-weight:600;
  letter-spacing:1.2px;text-transform:uppercase;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 h2 .hint{font-weight:400;letter-spacing:.2px;text-transform:none;opacity:.75}
 
+/* ---- overview ---- */
+.overview{display:grid;grid-template-columns:minmax(220px,.7fr) 1.3fr;gap:14px}
+.overview-score,.overview-panel{background:rgba(10,15,28,.5);border:1px solid var(--border);border-radius:14px;padding:20px}
+.overview-score{display:flex;align-items:center;gap:18px;min-height:190px}
+.overview-score strong{font-size:54px;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums}
+.overview-score .grade{font-size:14px;color:var(--muted);margin-top:8px}
+.overview-score .caption{font-size:12px;color:var(--muted);margin-top:14px}
+.overview-panel h3{margin:0 0 12px;font-size:14px;color:var(--text)}
+.overview-panel p{margin:0;color:var(--muted);font-size:13px}
+.overview-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.overview-actions button{background:rgba(106,166,255,.1);color:#a9c6ff;border:1px solid rgba(106,166,255,.3);
+ border-radius:8px;padding:8px 12px;cursor:pointer;font-size:12.5px}
+.overview-actions button:hover{border-color:var(--accent);color:var(--text)}
+.signals{display:grid;gap:8px;margin-top:12px}
+.signal{display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px}
+.signal .mark{font-weight:800;min-width:42px}.signal.ok .mark{color:var(--good)}
+.signal.warn .mark{color:var(--warn)}.signal.bad .mark{color:var(--bad)}
+.signal .copy{color:var(--muted)}.signal .copy b{color:var(--text);font-weight:600}
+
 /* ---- graphs ---- */
 .graph{position:relative;width:100%;height:600px;border:1px solid var(--border);
  border-radius:14px;overflow:hidden;
@@ -266,6 +285,18 @@ pre.src .lc.on{background:rgba(106,166,255,.2);box-shadow:inset 2px 0 0 var(--ac
 #symbox span:hover{color:var(--accent);border-color:var(--accent)}
 
 footer{max-width:1280px;margin:0 auto;padding:0 34px 40px;color:#4a5878;font-size:12px}
+@media (max-width:720px){
+ header{padding:22px 16px 8px}.brand{gap:9px}.brand h1{font-size:24px}
+ #scorechip{order:3;margin-left:0}.brand .root{order:4}#search{order:5;width:100%;margin:6px 0 0}
+ main{padding:10px 16px 52px}.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.card{padding:12px}.card .num{font-size:23px}
+ #tabs{margin-top:20px;gap:4px;overflow-x:auto;flex-wrap:nowrap;padding-bottom:1px}
+ #tabs button{white-space:nowrap;padding:9px 12px;font-size:12px}.tabpage{padding:12px;border-radius:0 10px 10px 10px}
+ .overview{grid-template-columns:1fr}.overview-score{min-height:150px;padding:16px}.overview-score strong{font-size:46px}
+ .graph{height:420px}.browser{grid-template-columns:1fr}.browser #filelist{max-height:180px}
+ .charts{grid-template-columns:1fr}.chartbox[style*="grid-column"]{grid-column:auto!important}
+ table{display:block;overflow-x:auto;white-space:nowrap}.dimrow .dv{display:none}.dimrow .dn{width:76px}
+ footer{padding:0 16px 28px}
+}
 """
 
 _JS = r"""
@@ -288,11 +319,20 @@ document.querySelectorAll('.card .num').forEach(el=>{
   requestAnimationFrame(step);
 });
 
-/* ---- tabs (keys 1-6) ---- */
+/* ---- tabs (keys 1-7) ---- */
 const tabs = [...document.querySelectorAll('#tabs button')];
 function showTab(id){
-  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === id));
-  document.querySelectorAll('.tabpage').forEach(p => p.classList.toggle('active', p.id === 'tab-' + id));
+  tabs.forEach(b => {
+    const active = b.dataset.tab === id;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  document.querySelectorAll('.tabpage').forEach(p => {
+    const active = p.id === 'tab-' + id;
+    p.classList.toggle('active', active);
+    p.setAttribute('aria-hidden', active ? 'false' : 'true');
+  });
+  if (id === 'overview') drawOverview();
   if (id === 'deps') drawGraph('deps');
   if (id === 'calls') drawGraph('calls');
   if (id === 'charts') drawCharts();
@@ -303,6 +343,20 @@ document.addEventListener('keydown', e => {
   const i = parseInt(e.key);
   if (i >= 1 && i <= tabs.length) showTab(tabs[i-1].dataset.tab);
 });
+
+function drawOverview(){
+  const h = DATA.health;
+  const color = GRADE_COLOR[h.grade_class] || '#6aa6ff';
+  const score = document.getElementById('overview-score');
+  score.innerHTML = `<strong style="color:${color}">${h.total}</strong><div><div class="grade">${esc(h.grade)} · 架构健康分</div><div class="caption">分数越高，结构性风险越少</div></div>`;
+  const risk = document.getElementById('overview-signals');
+  const risky = h.dimensions.filter(d => d.penalty > 0);
+  risk.innerHTML = risky.length ? risky.map(d => {
+    const level = d.penalty >= d.max_penalty * .6 ? 'bad' : 'warn';
+    return `<div class="signal ${level}"><span class="mark">-${d.penalty} 分</span><span class="copy"><b>${esc(d.name)}</b>：${esc(d.detail)}</span></div>`;
+  }).join('') : '<div class="signal ok"><span class="mark">通过</span><span class="copy"><b>未发现结构性风险</b>：可以继续查看依赖图和复杂度明细。</span></div>';
+}
+document.querySelectorAll('[data-jump]').forEach(b => b.onclick = () => showTab(b.dataset.jump));
 
 /* ---- force graph (shared engine) ---- */
 const sims = {};
@@ -664,8 +718,8 @@ function jumpToSymbol(q){
     </svg>`;
 })();
 
-/* landing tab: draw deps graph once fonts/layout ready */
-window.addEventListener('load', () => drawGraph('deps'));
+/* landing tab: make the conclusion useful before rendering heavier graphs */
+window.addEventListener('load', () => drawOverview());
 """
 
 _TABLE = ""  # reserved
@@ -737,16 +791,34 @@ def render_interactive_report(analyzer: RepoAnalyzer, path: str) -> str:
 </header>
 <main>
   <div class="cards">{cards}</div>
-  <div id="tabs">
-    <button class="active" data-tab="deps">① 模块依赖图</button>
-    <button data-tab="calls">② 调用图</button>
-    <button data-tab="charts">③ 图谱总览</button>
-    <button data-tab="src">④ 源码浏览</button>
-    <button data-tab="cx">⑤ 复杂度</button>
-    <button data-tab="coupling">⑥ 耦合度</button>
+  <div id="tabs" role="tablist" aria-label="报告视图">
+    <button class="active" role="tab" aria-selected="true" data-tab="overview">① 先看结论</button>
+    <button role="tab" aria-selected="false" data-tab="deps">② 模块依赖图</button>
+    <button role="tab" aria-selected="false" data-tab="calls">③ 调用图</button>
+    <button role="tab" aria-selected="false" data-tab="charts">④ 图谱总览</button>
+    <button role="tab" aria-selected="false" data-tab="src">⑤ 源码浏览</button>
+    <button role="tab" aria-selected="false" data-tab="cx">⑥ 复杂度</button>
+    <button role="tab" aria-selected="false" data-tab="coupling">⑦ 耦合度</button>
   </div>
 
-  <div class="tabpage active" id="tab-deps">
+  <div class="tabpage active" id="tab-overview" role="tabpanel" aria-hidden="false">
+    <h2>项目结论 <span class="hint">先判断风险，再进入对应明细</span></h2>
+    <div class="overview">
+      <div class="overview-score" id="overview-score"></div>
+      <div class="overview-panel">
+        <h3>当前扫描范围</h3>
+        <p>共 {s['files']} 个文件，{s['python_files']} 个 Python 文件，{s['code_lines']:,} 行代码，识别到 {s['functions']} 个函数 / 方法。</p>
+        <div class="overview-actions">
+          <button data-jump="deps">查看模块依赖</button>
+          <button data-jump="cx">定位复杂度热点</button>
+          <button data-jump="src">浏览源码</button>
+        </div>
+      </div>
+    </div>
+    <div class="overview-panel" style="margin-top:14px"><h3>需要关注</h3><div class="signals" id="overview-signals"></div></div>
+  </div>
+
+  <div class="tabpage" id="tab-deps" role="tabpanel" aria-hidden="true">
     <h2>模块依赖图
       <span class="hint">拖动节点 · 滚轮缩放 · 悬停看连线 · 点击看详情 · 键盘 1-6 切页</span>
       <label style="margin-left:auto;font-weight:400;text-transform:none;letter-spacing:0">
@@ -757,13 +829,13 @@ def render_interactive_report(analyzer: RepoAnalyzer, path: str) -> str:
     <div class="legend" id="legend-deps"></div>
   </div>
 
-  <div class="tabpage" id="tab-calls">
+  <div class="tabpage" id="tab-calls" role="tabpanel" aria-hidden="true">
     <h2>调用图 <span class="hint">展示最活跃的 {len(data['callEdges'])} 条调用关系</span></h2>
     <div class="graph"><svg id="svg-calls"></svg></div>
     <div class="detail" id="detail-calls">点击函数节点，查看它调用谁 / 谁调用它。点击芯片名可跳转源码。</div>
   </div>
 
-  <div class="tabpage" id="tab-charts">
+  <div class="tabpage" id="tab-charts" role="tabpanel" aria-hidden="true">
     <h2>图谱总览</h2>
     <div class="charts">
       <div class="chartbox"><h3>语言分布（按代码行）</h3>
@@ -780,7 +852,7 @@ def render_interactive_report(analyzer: RepoAnalyzer, path: str) -> str:
     </div>
   </div>
 
-  <div class="tabpage" id="tab-src">
+  <div class="tabpage" id="tab-src" role="tabpanel" aria-hidden="true">
     <h2>源码浏览器 <span class="hint">左侧选文件 · 底部符号芯片可跳转行</span></h2>
     <div class="browser">
       <div id="filelist"></div>
@@ -791,13 +863,13 @@ def render_interactive_report(analyzer: RepoAnalyzer, path: str) -> str:
     </div>
   </div>
 
-  <div class="tabpage" id="tab-cx">
+  <div class="tabpage" id="tab-cx" role="tabpanel" aria-hidden="true">
     <h2>圈复杂度 前 40 名 <span class="hint">≥15 红 / 8–14 橙 / &lt;8 绿 · 点函数名跳源码</span></h2>
     <table><tr><th class="num">复杂度</th><th>函数</th><th>位置</th><th style="width:24%"></th></tr>
     {cx_rows}</table>
   </div>
 
-  <div class="tabpage" id="tab-coupling">
+  <div class="tabpage" id="tab-coupling" role="tabpanel" aria-hidden="true">
     <h2>模块耦合度 <span class="hint">被依赖 = 有多少人引用它 · 依赖 = 它引用了多少人</span></h2>
     <table><tr><th>模块</th><th class="num">被依赖数</th><th class="num">依赖数</th></tr>
     {coupling_rows}</table>
