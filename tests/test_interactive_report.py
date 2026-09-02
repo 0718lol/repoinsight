@@ -39,6 +39,15 @@ def test_no_external_references(tmp_path, analysis):
     assert "<link" not in html
 
 
+def test_frontend_assets_are_loaded_from_package_resources():
+    from repoinsight.report.interactive_assets import load_assets
+
+    css, javascript = load_assets()
+    assert ":root" in css
+    assert "drawOverview" in javascript
+    assert "https://" not in css + javascript
+
+
 def test_embeds_sources_and_symbols(tmp_path, analysis):
     out = tmp_path / "interactive.html"
     render_interactive_report(analysis, str(out))
