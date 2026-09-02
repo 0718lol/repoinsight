@@ -8,7 +8,7 @@ from typing import Dict, List
 from .call_graph import CallGraph
 from .models import AnalysisResult, Symbol
 from .module_graph import ModuleGraph
-from .parsers.python_parser import PythonParser
+from .parsers import parser_for
 from .scanner import RepoScanner
 
 
@@ -28,9 +28,9 @@ class RepoAnalyzer:
         symbols: List[Symbol] = []
         imports = []
         for f in files:
-            if f.language != "python":
+            parser = parser_for(f.language, f.path)
+            if parser is None:
                 continue
-            parser = PythonParser(f.path)
             try:
                 parser.parse(Path(f.absolute_path).read_text(encoding="utf-8", errors="replace"))
             except (ValueError, OSError) as exc:

@@ -28,11 +28,11 @@ def module_name_for(rel_path: str) -> str:
 def file_to_module(rel_path: str) -> str:
     """Inverse mapping of module_name_for for files: used to qualify symbols.
 
-    'pkg/mod.py' -> 'pkg.mod'; '__init__.py' at root -> '__root__'.
+    'pkg/mod.py' -> 'pkg.mod'; 'app.js' -> 'app'; '__init__.py' at root -> '__root__'.
     """
     parts = rel_path.replace("\\", "/").split("/")
-    if parts and parts[-1].endswith(".py"):
-        parts[-1] = parts[-1][:-3]
+    if parts:
+        parts[-1] = PurePosixPath(parts[-1]).stem
     if parts and parts[-1] == "__init__":
         parts = parts[:-1] or ["__root__"]
     return ".".join(parts)

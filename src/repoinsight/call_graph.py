@@ -67,7 +67,7 @@ class CallGraph:
                         return resolved
             # 3. method call inside the same class: self.method(...),
             #    walking up the inheritance chain when needed
-            if raw.startswith("self.") and caller.parent:
+            if raw.startswith(("self.", "this.", "super.")) and caller.parent:
                 resolved = self._method_on_class(caller.parent, rest)
                 if resolved:
                     return resolved
